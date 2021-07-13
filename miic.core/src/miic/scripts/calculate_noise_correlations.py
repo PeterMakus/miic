@@ -81,6 +81,7 @@ def paracorr(par):
                             par['net']['channels'],par['co'],lle_df)
 
     sttimes = datetime_list(par['co']['read_start'], par['co']['read_end'], inc=par['co']['read_inc'])	## loop over 24hrs/whole days
+
     time_inc = datetime.timedelta(seconds=par['co']['read_len'])
     res_dir = par['co']['res_dir']
     station_list = par['net']['stations']
@@ -153,8 +154,9 @@ def paracorr(par):
                             sst = stream_cache[station][channel].split()
                             sst.decimate(par['co']['decimation'])
                             stream_cache[station][channel] = deepcopy(sst.merge())
-                    ttst = stream_cache[station][channel].copy().trim(starttime=usttime,
-                                                 endtime=usttime+par['co']['read_len'])
+                    ttst = stream_cache[station][channel].copy().trim(
+                        starttime=usttime,
+                        endtime=usttime+par['co']['read_len'])
                     get_valid_traces(ttst)
                     tst +=ttst
                 except:
@@ -162,10 +164,14 @@ def paracorr(par):
             cst += tst
         cst = stream_add_lat_lon_ele(cst,lle_df)
         # initial preprocessing on long time series
+        # This taper wasn't here before but is very important
+        cst.taper(5)
         if 'preProcessing' in par['co'].keys():
             for procStep in par['co']['preProcessing']:
                 cst = procStep['function'](cst,**procStep['args'])
-
+        # if rank == 0:
+        #     cst.write('/home/pm/Documents/PhD/Chaku/daily_old.mseed')
+        # raise ValueError
 
         # create output path
         pathname = os.path.join(par['co']['res_dir'],correlation_subdir_name(sttime))
@@ -198,11 +204,11 @@ def paracorr(par):
             # loop over subdivisions
             for subn in range(nsub):
                 if nsub > 1:
-                    sub_st = st.copy().trim(starttime=UTCDateTime(sttime)+
-                                    subn*par['co']['subdivision']['corr_inc'],
-                                    endtime=UTCDateTime(sttime)+subn*par['co']['subdivision']['corr_inc']+
-                                    par['co']['subdivision']['corr_len']-
-                                    1./(par['co']['sampling_rate']/par['co']['decimation']))
+                    sub_st = st.copy().trim(
+                        starttime=UTCDateTime(sttime)+subn*par['co']['subdivision']['corr_inc'],
+                        endtime=UTCDateTime(sttime)+subn*par['co']['subdivision']['corr_inc']+
+                        par['co']['subdivision']['corr_len']-
+                        1./(par['co']['sampling_rate']/par['co']['decimation']))
                     get_valid_traces(sub_st)
                 else:
                     sub_st = st

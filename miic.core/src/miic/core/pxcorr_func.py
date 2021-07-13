@@ -15,6 +15,8 @@ from miic.core.miic_utils import convert_to_matlab, corr_to_hdf5, InputError
 from numpy import (expand_dims, nanmean,reshape, transpose, take,
              sort, ones, arange, dot, cast, asarray)
 from scipy import linalg
+from scipy.fftpack import next_fast_len
+
 
 
 zerotime = UTCDateTime(1971,1,1)
@@ -25,7 +27,6 @@ def pxcorr_write(comm,A,st,**kwargs):
     """ A is an array with time along going the first dimension.
     """
     global zerotime
-
     t0 = MPI.Wtime()
     msize = A.shape
     ntrc = msize[1]
@@ -38,10 +39,10 @@ def pxcorr_write(comm,A,st,**kwargs):
     jnormflag = False
     for proc in kwargs['FDpreProcessing']:
         if proc['function'] == spectralWhitening:
-            try :
+            try:
                 if proc['args']['joint_norm'] :
                     jnormflag = True
-            except :
+            except:
                 pass
     if jnormflag:
         # for joint normalization all channels of a station must go to the same
@@ -56,6 +57,12 @@ def pxcorr_write(comm,A,st,**kwargs):
     # indecies for traces to be worked on by each process
     ind = pmap == rank
 
+    # ## just for tests
+    # comm.barrier()
+    # comm.Allreduce(MPI.IN_PLACE,[A,MPI.DOUBLE],op=MPI.SUM)
+    # # compare results
+    # np.save('/home/pm/Documents/PhD/Chaku/A_old', A)
+    # raise ValueError
     ######################################
     ## time domain pre-processing
     params = {}
@@ -64,8 +71,17 @@ def pxcorr_write(comm,A,st,**kwargs):
             params.update({key:kwargs[key]})
     for proc in kwargs['TDpreProcessing']:
         A[:,ind] = proc['function'](A[:,ind],proc['args'],params)
+    # np.save('/home/pm/Documents/PhD/testdata/afterTD_old', A)
+    # np.dienow
     # zero-padding
     A = zeroPadding(A,{'type':'avoidWrapPowerTwo'},params)
+
+    ## just for tests
+    # comm.barrier()
+    # comm.Allreduce(MPI.IN_PLACE,[A,MPI.DOUBLE],op=MPI.SUM)
+    # # compare results
+    # np.save('/home/pm/Documents/PhD/Chaku/A0_old', A)
+    # raise ValueError
 
     ######################################
     ## FFT
@@ -77,16 +93,29 @@ def pxcorr_write(comm,A,st,**kwargs):
     B[:,ind] = np.fft.rfft(A[:,ind],axis=0)
     freqs = rfftfreq(zmsize[0],1./kwargs['sampling_rate'])
 
+    # ## just for tests
+    # # compare results
+    # np.save('/home/pm/Documents/PhD/Chaku/B_old', B)
+    # raise ValueError
+
     ######################################
     ## frequency domain pre-processing
     params.update({'freqs':freqs})
     for proc in kwargs['FDpreProcessing']:
         B[:,ind] = proc['function'](B[:,ind],proc['args'],params)
+    
+    ## just for tests
+    # compare results
+    # np.save('/home/pm/Documents/PhD/Chaku/B0_old', B)
+    # raise ValueError
 
     ######################################
     ## collect results
     comm.barrier()
     comm.Allreduce(MPI.IN_PLACE,[B,MPI.DOUBLE],op=MPI.SUM)
+    # compare results
+    # np.save('/home/pm/Documents/PhD/testdata/afterFD_old', B)
+    # np.dienow
 
     t1 = MPI.Wtime()
 
@@ -115,6 +144,8 @@ def pxcorr_write(comm,A,st,**kwargs):
             roffset = np.fix(offset * kwargs['sampling_rate']) / kwargs['sampling_rate']
         # faction of samples to be compenasated by shifting
         offset -= roffset
+        print(kwargs['starttime'])
+        print('offset: ', offset)
         # normalization factor of fft correlation
         if kwargs['normalize_correlation']:
             norm = (np.sqrt(2.*np.sum(B[:,kwargs['combinations'][ii][0]] *
@@ -130,11 +161,28 @@ def pxcorr_write(comm,A,st,**kwargs):
                                B[:,kwargs['combinations'][ii][1]] *
                                np.exp(1j * freqs * offset * 2 * np.pi))
                                #np.exp(-1j * freqs/kwargs['sampling_rate'] * offset/kwargs['sampling_rate'] * 2 * np.pi))
+        # with open('/home/pm/Documents/PhD/testdata/combinations.yml', 'w') as outfile:
+        #     import yaml
+        #     yaml.dump(kwargs['combinations'], outfile, default_flow_style=False)
+        # # compare after correlation
+        # # ## just for tests
+        # # # compare results
+        # np.save('/home/pm/Documents/PhD/Chaku/M_old', M)
+        # raise ValueError
 
         tmp = np.fft.irfft(M,axis=0).real
+        ## just for tests
+        # compare results
+        # np.save('/home/pm/Documents/PhD/Chaku/tmp_old', tmp)
+        # raise ValueError
         # cut the center and do fftshift
         out = np.concatenate((tmp[-sampleToSave:],tmp[:sampleToSave+1]))/norm
         starttime = zerotime -sampleToSave/kwargs['sampling_rate'] - roffset
+        # # compare after correlation
+        # just for tests
+        # compare results
+        # np.save('/home/pm/Documents/PhD/Chaku/C_old', out)
+        # raise ValueError
 
 
         cstats = combine_stats(st[kwargs['combinations'][ii][0]],
@@ -690,8 +738,11 @@ def zeroPadding(A,args,params):
     elif args['type'] == 'avoidWrapAround':
         N = npts + params['sampling_rate'] * params['lengthToSave']
     elif args['type'] == 'avoidWrapPowerTwo':
-        N = osignal.util.next_pow_2(npts + params['sampling_rate'] *
-                                  params['lengthToSave'])
+        # N = osignal.util.next_pow_2(npts + params['sampling_rate'] *
+        #                           params['lengthToSave'])
+        # try with nextfastlen
+        N = next_fast_len(int(
+            npts + params['sampling_rate'] * params['lengthToSave']))
     else:
         raise ValueError("type '%s' of zero padding not implemented" %
                          args['type'])
@@ -947,9 +998,12 @@ def stream_pxcorr(st,options,comm=None):
     npts = comm.bcast(npts, root=0)
     # fill matrix with noise data
     A = np.zeros([npts,len(st)])
-    if rank == 0:    
+    if rank == 0:
+        st.write('/home/pm/Documents/PhD/Chaku/input_old.mseed')
         for ii in range(len(st)):
             A[0:st[ii].stats['npts'],ii] = st[ii].data
+        np.save('/home/pm/Documents/PhD/Chaku/input_old', A)
+    raise ValueError
     comm.Bcast([A,MPI.DOUBLE],root=0)
     options.update({'starttime':starttime,
                     'sampling_rate':st[0].stats['sampling_rate']})

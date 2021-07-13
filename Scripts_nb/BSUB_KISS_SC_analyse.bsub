@@ -1,0 +1,17 @@
+#!/bin/bash
+
+
+cd /home/chris/PROJECTS/KISS/processing
+
+#BSUB -J SC_c 
+#BSUB -o SC_c.out
+#BSUB -e SC_c.err
+#BSUB -n 16
+#BSUB -R "span[hosts=1]"
+#BSUB -W 120:00
+#BSUB -u chris@gfz-potsdam.de
+#BSUB -q qseismology
+####BSUB -env "all,MKL_NUM_THREADS=1, NUMEXPR_NUM_THREADS=1, OMP_NUM_THREADS=1"
+#BSUB -a intelmpi
+
+/home/chris/lib/anaconda2/bin/python2.7 KISS_SC_analyze.py

@@ -1,8 +1,8 @@
 #### Project wide parameters
 # lowest level project directory
-proj_dir : 'monitoring_project'
+proj_dir : '/home/pm/Documents/PhD/Chaku'
 # directory for logging information
-log_subdir : 'log'
+log_subdir : 'log_old'
 # folder for figures
 fig_subdir : 'figures'
 
@@ -10,51 +10,54 @@ fig_subdir : 'figures'
 net:
     # list of stations used in the project
     # type: list of strings of type 'NET.STATION'
-    stations : ['GR.CLL','GR.CLZ','GR.RUE']
+    stations : ['XN.NEP06'] #, 'XN.NEP07', 'XN.NEP10']
     # list of channels
     # type: list of strings
-    channels : ['BHZ','BHN','BHE']
+    channels : ['HHZ','HHN','HHE']
     # path to the file that stores the coordinates of the stations
     # type: string
-    coordinate_file : 'coordinates.txt'
+    coordinate_file : '/home/pm/Documents/PhD/Chaku/all_coordinates_chnls.txt'
     # file system structure
     # list of strings and lists
-    fss : ['/DATA/mseed','%STA',['%sta','%y','%m','%d','??????','.','%cha']]
+    # fss : ['/DATA/mseed','%STA',['%sta','%y','%m','%d','??????','.','%cha']]
+    fss : ['/home/pm/Documents/PhD/Chaku/mseed','%Y', '%NET', '%STA', ['%CHA', '.D'],
+     ['%NET', '.', '%STA', '.', '%LOC', '.', '%CHA', '.D.', '%Y', '.', '%j']]
 
 
 #### parameters for correlation (emperical Green's function creation)
 co:
     # subdirectory of 'proj_dir' to store correlation
     # type: string
-    subdir : 'corr'
+    subdir : 'corr_old'
     # times sequences to read for cliping or muting on stream basis
     # These should be long enough for the reference (e.g. the standard
     # deviation) to be rather independent of the parts to remove
     # type: string
-    read_start : '2015-05-1 00:00:01.0'
-    read_end : '2016-1-1 00:00:00.0'
+    read_start : '2015-11-9 00:00:01.0'
+    read_end : '2015-11-30 00:00:00.0'
     # type: float [seconds]
     read_len : 86398
     read_inc : 86400
 
     # required input sampling rate (data with different sampling rate are not used)
     # type: float [Hz]
-    sampling_rate : 100
+    sampling_rate : 200
     # decimation factor (sampling_rate(correlation)=sampling_rate(date)/decimation)
     # decimation <= 1 mean no decimation
     # type: int
-    decimation : 5
+    decimation : 8 # 8
 
     # Method to combine different traces
-    combination_method : 'betweenStations'
+    combination_method : 'betweenComponents'
 
     # preprocessing of the original length time series
     # these function work on an obspy.Stream object given as first argument
     # and return an obspy.Stream object.
-    preProcessing : [{'function':'miic.core.stream.stream_filter',
+    preProcessing : [
+                    {'function':'miic.core.stream.stream_filter',
                       'args':{'ftype':'bandpass',
-                              'filter_option':{'freqmin':0.01,
-                                               'freqmax':9},
+                              'filter_option':{'freqmin':2,
+                                               'freqmax':8},
                               'parallel':False}},
                      #{'function':'miic.core.stream.stream_mute',
                      # 'args':{'taper_len':100,
@@ -69,26 +72,31 @@ co:
         corr_len : 3600
         # recombine these subdivisions
         # type: boolean
-        recombine_subdivision : True
+        recombine_subdivision : False
+        # delete 
+        # type: booblean
+        delete_subdivisions : False
 
     # parameters for correlation preprocessing
-    corr_args : {'TDpreProcessing':[#{'function':'miic.core.pxcorr_func.detrend',
-                                    # 'args':{'type':'constant'}},
-                                   #{'function':'miic.core.pxcorr_func.TDfilter',
-                                   # 'args':{'type':'bandpass','freqmin':0.01,'freqmax':4}},
-                                    #{'function':'miic.core.pxcorr_func.mute',
+    corr_args : {'TDpreProcessing':[
+                                  {'function':'miic.core.pxcorr_func.detrend',
+                                     'args':{'type':'constant'}},
+                                  #  {'function':'miic.core.pxcorr_func.TDfilter',
+                                  #  'args':{'type':'bandpass','freqmin':0.01,'freqmax':4}},
+                                    # {'function':'miic.core.pxcorr_func.mute',
                                     # 'args':{'taper_len':100.,
-                                           # 'threshold':1000, absolute threshold
+                                    #        'threshold':1000, absolute threshold
                                     #         'std_factor':3,
                                     #         'filter':{'type':'bandpass','freqmin':2,'freqmax':4},
                                     #         'extend_gaps':True}},
-                                   {'function':'miic.core.pxcorr_func.clip',
-                                    'args':{'std_factor':3}},
+                                  #  {'function':'miic.core.pxcorr_func.clip',
+                                  #   'args':{'std_factor':3}},
                                    ],
-                 'FDpreProcessing':[{'function':'miic.core.pxcorr_func.spectralWhitening',
+                 'FDpreProcessing':[
+                                    {'function':'miic.core.pxcorr_func.spectralWhitening',
                                      'args':{'joint_norm':False}},
                                     {'function':'miic.core.pxcorr_func.FDfilter',
-                                     'args':{'freqs':[0.01,0.02,9,10]}}
+                                     'args':{'flimit':[0.01,0.02,9,10]}}
                                     ],
                  'lengthToSave':100,
                  'center_correlation':True,      # make sure zero correlation time is in the center
@@ -106,28 +114,28 @@ co:
 #### parameters for the estimation of time differences
 dv:
     # subfolder for storage of time difference results
-    subdir : 'vel_change'
+    subdir : 'vel_change_old'
 
     # Plotting
     plot_vel_change : True
 
     ### Definition of calender time windows for the time difference measurements
-    start_date : '2015-05-01 00:00:00.0'   # %Y-%m-%dT%H:%M:%S.%fZ'
-    end_date : '2016-01-01 00:00:00.0'
-    win_len : 86400                         # length of window in which EGFs are stacked
-    date_inc : 86400                        # increment of measurements
+    start_date : '2015-11-9 00:00:01.0'  # %Y-%m-%dT%H:%M:%S.%fZ'
+    end_date : '2015-11-29 23:59:59.0'
+    win_len : 14400                         # length of window in which EGFs are stacked
+    date_inc : 3600                        # increment of measurements
 
     ### Frequencies
-    freq_min : 0.1
-    freq_max : 0.5
+    freq_min : 1
+    freq_max : 8
 
     ### Definition of lapse time window
-    tw_start : 20     # lapse time of first sample [s]
-    tw_len : 60       # length of window [s]
+    tw_start : 1     # lapse time of first sample [s]
+    tw_len : 15       # length of window [s]
     
     ### Range to try stretching
-    stretch_range : 0.03
-    stretch_steps : 1000
+    stretch_range : 0.09
+    stretch_steps : 1001
 
 
 
